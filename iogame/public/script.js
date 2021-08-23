@@ -40,6 +40,10 @@ var discres = "Disconnected",
 
 connecttoserver();
 
+function getdist(x1, y1, x2, y2) {
+  return Math.hypot(x1 - x2, y1 - y2);
+}
+
 const pack = {
   move: "m",
   pos: "p",
@@ -71,7 +75,7 @@ var mp = {
   od: null
 };
 
-var myPlayer = {
+var myplayer = {
   x: 0,
   y: 0,
   id: null,
@@ -221,7 +225,7 @@ setInterval(function() {
 }, 10);
 
 function gameTick() {
-  if (myPlayer.id !== null) {
+  if (myplayer.id !== null) {
     render();
   } else disconected_screen();
 }
@@ -288,8 +292,12 @@ function player(x, y, d, w, changeHand) {
   drawweapon(w, x, y, d);
 }
 
+var renderMs,
+lastRender = Date.now();
+
 function render() {
   if (ws.isclosed) return;
+  renderMs = Date.now() - lastRender;
   ctx.clearRect(0, 0, mp.width, mp.height);
   ctx.save();
  /* ctx.fillStyle = "#7eff57";
@@ -302,14 +310,14 @@ function render() {
   ctx.lineWidth = 2;
   for (let i = -sqrgrid + 1; i < sqrgrid; i++) {
     ctx.beginPath();
-    ctx.moveTo(i * 100 - myPlayer.x, gridlen - myPlayer.y);
-    ctx.lineTo(i * 100 - myPlayer.x, -gridlen - myPlayer.y);
+    ctx.moveTo(i * 100 - myplayer.x, gridlen - myplayer.y);
+    ctx.lineTo(i * 100 - myplayer.x, -gridlen - myplayer.y);
     ctx.stroke();
   }
   for (let i = sqrgrid - 1; i > -sqrgrid; i--) {
     ctx.beginPath();
-    ctx.moveTo(gridlen - myPlayer.x, i * 100 - myPlayer.y);
-    ctx.lineTo(-gridlen - myPlayer.x, i * 100 - myPlayer.y);
+    ctx.moveTo(gridlen - myplayer.x, i * 100 - myplayer.y);
+    ctx.lineTo(-gridlen - myplayer.x, i * 100 - myplayer.y);
     ctx.stroke();
   }
   ctx.restore();
@@ -323,7 +331,7 @@ function render() {
     index.x = pos[0];
     index.y = pos[1];
     
-    circle(index.x - myPlayer.x, index.y - myPlayer.y, 4)
+    circle(index.x - myplayer.x, index.y - myplayer.y, 4)
     
     projectiles[i] = index;
   }
@@ -341,7 +349,7 @@ function render() {
   ctx.fillText(pingtime ? `ping ${pingtime}` : "Connecting...", 0, 0);
   ctx.restore();
   
-
+  lastRender = Date.now();
 }
 
 function avg(n1, n2) {
@@ -352,7 +360,7 @@ function building(x, y, t, rt, d) {
   for (let i = 0; i < buildinf.length; i++) {
     let index = buildinf[i];
     if (index.id == t && index.type == rt)
-      index.draw(x - myPlayer.x, y - myPlayer.y, d);
+      index.draw(x - myplayer.x, y - myplayer.y, d);
   }
 }
 
@@ -500,7 +508,7 @@ function drawallplayers() {
       weapon: index[6],
       wepindex: finditem(index[6], 0),
       dpcount: index[8],
-      isme: index[0] == myPlayer.id,
+      isme: index[0] == myplayer.id,
       lastdir: index[9],
       chattimer: index[10],
       angletick: index[11],
@@ -509,7 +517,11 @@ function drawallplayers() {
       postick: index[14],
       mDir: index[15],
       speed: index[16],
-      lmdir: index[17]
+      lmdir: index[17],
+      staticX: index[18],
+      staticY: index[19],
+      lastStaticX: index[20],
+      lastStaticY: index[21]
     };
     /*
     thisplayer.mdir2 = (thisplayer.x == thisplayer.lastx && thisplayer.y == thisplayer.lasty) ? null : getdir(thisplayer.lastx, thisplayer.lasty, thisplayer.x, thisplayer.y)
@@ -524,18 +536,47 @@ function drawallplayers() {
         myplayer.y = thisplayer.y;
       }
     } */
+
+    /*
+    thisplayer.mdir2 = (thisplayer.x == thisplayer.lastx && thisplayer.y == thisplayer.lasty) ? null : getdir(thisplayer.lastx, thisplayer.lasty, thisplayer.x, thisplayer.y)
+
+    if(thisplayer.mdir2 !== null){//has moved from spot and should calculate
+    const moveDist = getdist(thisplayer.lastx, thisplayer.lasty, thisplayer.x, thisplayer.y);    
+  
+    let tmPos = calcvec(thisplayer.x, thisplayer.y, thisplayer.mdir2, thisplayer.postick);
+    
+    thisplayer.postick += 0.1;
+ //   document.title = thisplayer.postick;
+    thisplayer.x = tmPos[0];
+    thisplayer.y = tmPos[1];
+
+        if(thisplayer.isme){ 
+      myplayer.x = thisplayer.x;
+      myplayer.y = thisplayer.y;
+    }
+    }*/
+
+    thisplayer.mdir2 = (thisplayer.staticX == thisplayer.lastStaticX && thisplayer.staticY == thisplayer.lastStaticY) ? null : getdir(thisplayer.lastStaticX, thisplayer.lastStaticY, thisplayer.staticX, thisplayer.staticY);
+
+  //  document.title = thisplayer.mdir2
+
+    //main lerping
     if(thisplayer.speed > 0){
-      let calcPos = calcvec(thisplayer.x, thisplayer.y, thisplayer.lmdir, thisplayer.speed / 10);
+      let calcPos = calcvec(thisplayer.x, thisplayer.y, thisplayer.mdir2, thisplayer.speed / 10);
       thisplayer.x = calcPos[0];
       thisplayer.y = calcPos[1];
       if(thisplayer.isme){
-        myPlayer.x = thisplayer.x;
-        myPlayer.y = thisplayer.y;
+        myplayer.x = thisplayer.x;
+        myplayer.y = thisplayer.y;
       }
     }
 
-    thisplayer.rx = thisplayer.x - myPlayer.x;
-    thisplayer.ry = thisplayer.y - myPlayer.y;
+    
+
+    thisplayer.rx = thisplayer.x - myplayer.x;
+    thisplayer.ry = thisplayer.y - myplayer.y;
+
+    let tmpDir = thisplayer.dir;
 
     if (thisplayer.dir !== thisplayer.lastdir) thisplayer.angletick = 0;
     if (thisplayer.angletick < 1) thisplayer.angletick += 0.1;
@@ -568,8 +609,8 @@ function drawallplayers() {
       thisplayer.dpcount;
     
     if(thisplayer.isme){
-      myPlayer.weapon = thisplayer.weapon;
-      sendTime = finditem(myPlayer.weapon, 0) && attacking ? 50 : 350;
+      myplayer.weapon = thisplayer.weapon;
+      sendTime = attacking ? 50 : 450;
     }
 
     player(
@@ -579,6 +620,9 @@ function drawallplayers() {
       thisplayer.weapon,
       thisplayer.wepindex.changeHands
     );
+   // thisplayer.dir = tmpDir;
+  // thisplayer.lastStaticX = thisplayer.staticX;
+  // thisplayer.lastStaticY = thisplayer.staticY;
     thisplayer.lastx = thisplayer.x;
     thisplayer.lasty = thisplayer.y;
     thisplayer.lastdir = thisplayer.dir;
@@ -591,6 +635,8 @@ function drawallplayers() {
     indexf[12] = thisplayer.lastx;
     indexf[13] = thisplayer.lasty;
     index[14] = thisplayer.postick;
+   // indexf[20] = thisplayer.staticX;
+   // indexf[21] = thisplayer.staticY;
     if (thisplayer.chattimer == 0) {
       thisplayer.chat = null;
       indexf[4] = thisplayer.chat;
@@ -610,14 +656,14 @@ function drawallplayers() {
       ctx.fillText(
         thisplayer.chat,
         thisplayer.rx,
-        thisplayer.y - (myPlayer.y + scale * 2)
+        thisplayer.y - (myplayer.y + scale * 2)
       );
     }
     ctx.font = "30px Georgia";
     ctx.fillText(
       `[${thisplayer.id}]`,
-      thisplayer.x - (myPlayer.x + scale + scale / 2),
-      thisplayer.y - (myPlayer.y + scale * 2)
+      thisplayer.x - (myplayer.x + scale + scale / 2),
+      thisplayer.y - (myplayer.y + scale * 2)
     );
 
     //end of player loop
@@ -631,6 +677,22 @@ document.addEventListener("keydown", function(e) {
   )
     return;
   ispressed[e.key] = true;
+
+  if(e.key == "r"){
+    send([pack.weapon, myplayer.availablewep[0]]);
+    send([pack.attack, true]);
+    setTimeout(function(){
+      send([pack.weapon, myplayer.availablewep[1]]);
+      setTimeout(function(){
+      send([pack.attack, false]);
+      setTimeout(function(){
+        send([pack.weapon, myplayer.availablewep[0]]);
+      }, 1600);
+    }, 115);
+    }, 115);
+  }
+
+
   updatemove();
   switch (e.keyCode) {
     case 13:
@@ -643,19 +705,19 @@ document.addEventListener("keydown", function(e) {
       } else text.style.display = "block";
       break;
     case 49:
-      send([pack.weapon, myPlayer.availablewep[0]]);
+      send([pack.weapon, myplayer.availablewep[0]]);
       break;
     case 50:
-      send([pack.weapon, myPlayer.availableobj[0]]);
+      send([pack.weapon, myplayer.availablewep[1]]);
       break;
     case 81:
-      send([pack.weapon, myPlayer.availableobj[0]]);
+      send([pack.weapon, myplayer.availableobj[0]]);
       break;
     case 51:
-      send([pack.weapon, myPlayer.availableobj[1]]);
+      send([pack.weapon, myplayer.availableobj[0]]);
       break;
     case 52:
-      send([pack.weapon, myPlayer.availablewep[1]]);
+      send([pack.weapon, myplayer.availableobj[1]]);
       break;
     case 32:
       if (!attacking) {
@@ -667,7 +729,7 @@ document.addEventListener("keydown", function(e) {
       case 69:
         
         attacking = !attacking;
-  send([pack.attack, attacking]);
+  send([pack.attack, attacking, mp.d]);
   break;
 
   case 88:
@@ -708,7 +770,7 @@ canv.addEventListener(
   "mousedown",
   function(e) {
     if (!attacking) {
-      send([pack.attack, true]);
+      send([pack.attack, true, mp.d]);
       attacking = true;
     }
   },
@@ -751,7 +813,7 @@ function connecttoserver(e = "ws://scrappypi:5001/") {
     setping = time();
     ws.onmessage = function(m) {
       const data = msgpack.decode(new Uint8Array(m.data));
-      console.log(data)
+     // console.log(data)
       const thisplayer = {
         data: findplayer(data[1]) || null,
         ind: findplayerindex(data[1]) || null
@@ -763,32 +825,39 @@ function connecttoserver(e = "ws://scrappypi:5001/") {
           for (let i = 0; i < players.length; i++) {
             let index = players[i];
             if (index[0] == pos[0]) {
+              players[i][20] = players[i][18];
+              players[i][21] = players[i][19];
+
               players[i][1] = pos[1];
               players[i][2] = pos[2];
               players[i][15] = pos[4];
               players[i][16] = pos[5];
               players[i][17] = pos[6];
-              if (pos[0] == myPlayer.id) {
-                myPlayer.x = pos[1];
-                myPlayer.y = pos[2];
-                myPlayer.mdir = pos[4];
-                myPlayer.speed = pos[5];
-                myPlayer.lmDir = pos[6];
+
+              players[i][18] = pos[1];
+              players[i][19] = pos[2];
+              if (pos[0] == myplayer.id) {
+                myplayer.x = pos[1];
+                myplayer.y = pos[2];
+                myplayer.mdir = pos[4];
+                myplayer.speed = pos[5];
+                myplayer.lmDir = pos[6];
               }
+              //return;
             }
           }
 
           //console.log(players);
           break;
         case pack.id:
-          myPlayer.id = data[1];
+          myplayer.id = data[1];
           serversetting = data[2];
           gridlen = data[3];
           sqrgrid = Math.sqrt(gridlen) / 3;
           //document.title = myplayer.id;
           break;
         case pack.newplayer:
-          //             0id,       1x,      2y, 3dir 4chat 5health 6weapon 7is_firing 8dpluscounter 9lastdir 10chattimer 11angle tick 12 last x 13 last y 14 pos tick 15: movedir 16: speed 17: lmdir
+          //             0id,       1x,      2y, 3dir 4chat 5health 6weapon 7is_firing 8dpluscounter 9lastdir 10chattimer 11angle tick 12 last x 13 last y 14 pos tick 15: movedir 16: speed 17: lmdir 18: staticx 19: staticy 20: laststaticx 21: laststaticy
           players.push([
             data[1],
             data[2],
@@ -807,7 +876,11 @@ function connecttoserver(e = "ws://scrappypi:5001/") {
             0,
             null,
             0,
-            null
+            null,
+            data[2],
+            data[3],
+            data[2],
+            data[3]
           ]);
           //console.log(players);
           break;
@@ -879,10 +952,11 @@ function connecttoserver(e = "ws://scrappypi:5001/") {
           break;
 
         case pack.death:
-          if (data[1] == myPlayer.id) {
-            myPlayer.availablewep = [0, 3];
-            myPlayer.availableobj = [1, 2];
+          if (data[1] == myplayer.id) {
+            myplayer.availablewep = [0, 3];
+            myplayer.availableobj = [1, 2];
           }
+     //     deathLog.push
           break;
 
         case pack.weapon:

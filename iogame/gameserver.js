@@ -1,8 +1,18 @@
+/*
+ allowed multi weapon timeout use 
+ made the movement lerping much better
+ increased attack distance
+ fixed broken attacking angles
+ moved to single server
+ fixed projectile bug where if it hit a player as it despawned it would cause an issue
+ fixed bug where on death you would reset your item and weapons, crashing the server
+ fixed a bug where if you sent an invalid weapon it would crash the server
+ added auto-attack (e) - still buggy
+ */
 const express = require("express"),
-app = express();
+  app = express();
 
-const http = require("http"),
-  fs = require("fs"),
+const fs = require("fs"),
   type = {
     js: "application/javascript",
     html: "text/html",
@@ -10,7 +20,7 @@ const http = require("http"),
     png: "image/png",
     txt: "text/text"
   },
-  dirF = `${__dirname}/public/`
+  dirF = `${__dirname}/public/`;
 
 var sends = {
   script: null,
@@ -25,7 +35,6 @@ function readFile(file, cb = function () { return null; }) {
   });
 }
 
-
 readFile(`${dirF}script.js`, function (data) {
   sends.script = data;
 });
@@ -38,26 +47,26 @@ readFile(`${dirF}index.html`, function (data) {
   sends.html = data;
 });
 
-app.get("/", function(req, res){
-  if(sends.script == null || sends.msgpack == null || sends.html == null) res.end("server still loading!");//only one is needed
-    res.writeHead(200, { "Content-Type": type.html });
-    res.write(sends.html);
-    res.end();
+app.get("/", function (req, res) {
+  if (sends.script == null || sends.msgpack == null || sends.html == null) res.end("server still loading!");//only one is needed
+  res.writeHead(200, { "Content-Type": type.html });
+  res.write(sends.html);
+  res.end();
 });
 
-app.get("/msgpack.js", function(req, res){
+app.get("/msgpack.js", function (req, res) {
   res.writeHead(200, { "Content-Type": type.js });
   res.write(sends.msgpack);
   res.end();
 });
 
-app.get("/script.js", function(req, res){
+app.get("/script.js", function (req, res) {
   res.writeHead(200, { "Content-Type": type.js });
   res.write(sends.script);
   res.end();
 });
 
-app.listen(5000, function(err){
+app.listen(5000, function (err) {
   if (err) return console.log("Error in server setup", err);
   console.log("Server listening on Port", 5000);
 })
@@ -78,64 +87,64 @@ const base_speed = msupdate / 10 + 2,
   speedMin = 5;
 
 const buildinf = [
-    {
-      id: 0,
-      name: "tree",
-      type: 1
-    },
-    {
-      id: 0,
-      name: "sword",
-      type: 0,
-      animtime: 450,
-      range: 60,
-      damage: 40,
-      heal: 0,
-      spmult: 3,
-      use: false
-    },
-    {
-      id: 1,
-      type: 0,
-      name: "apple",
-      animtime: null,
-      heal: 20,
-      spmult: normal_speed,
-      use: true,
-      place: false
-    },
-    {
-      id: 2,
-      type: 0,
-      name: "wall",
-      animtime: null,
-      heal: 0,
-      spmult: normal_speed,
-      use: true,
-      place: true
-    },
-    {
-      id: 1,
-      name: "Wall",
-      type: 1
-    },
-    {
-      id: 3,
-      type: 0,
-      name: "pistol",
-      animtime: 1500,
-      heal: 0,
-      spmult: 1,
-      use: false,
-      shoot: true
-    }
-  ],
+  {
+    id: 0,
+    name: "tree",
+    type: 1
+  },
+  {
+    id: 0,
+    name: "sword",
+    type: 0,
+    animtime: 450,
+    range: 60,
+    damage: 40,
+    heal: 0,
+    spmult: 3,
+    use: false
+  },
+  {
+    id: 1,
+    type: 0,
+    name: "apple",
+    animtime: null,
+    heal: 20,
+    spmult: normal_speed,
+    use: true,
+    place: false
+  },
+  {
+    id: 2,
+    type: 0,
+    name: "wall",
+    animtime: null,
+    heal: 0,
+    spmult: normal_speed,
+    use: true,
+    place: true
+  },
+  {
+    id: 1,
+    name: "Wall",
+    type: 1
+  },
+  {
+    id: 3,
+    type: 0,
+    name: "pistol",
+    animtime: 1500,
+    heal: 0,
+    spmult: 1,
+    use: false,
+    shoot: true
+  }
+],
   projectiles = [
     {
       id: 0,
       name: "pistol bullet",
       speed: 100,
-      damage: 50,
+      damage: 60,
       time: 1000
     }
   ];
@@ -267,7 +276,7 @@ var projectilesActive = [],
 
 const wsServer = new WebSocket.Server({ port: port });
 
-wsServer.on("connection", function(socket, req) {
+wsServer.on("connection", function (socket, req) {
   try {
     var speed = 0;
     var spmult;
@@ -295,7 +304,7 @@ wsServer.on("connection", function(socket, req) {
       ping: null,
       ip: req.headers["x-forwarded-for"],
       weapon: 0,
-      nextatk: 0,
+      nextatk: [],
       isprimary: true,
       avweps: [0, 3],
       avobj: [1],
@@ -306,8 +315,8 @@ wsServer.on("connection", function(socket, req) {
       speed: 0,
       lastDirUpdate: 0
     };
-    
-                      spmult = base_speed * finditem(player.weapon, 0).spmult;
+
+    spmult = base_speed * finditem(player.weapon, 0).spmult;
 
     var op = {
       dir: 0,
@@ -351,17 +360,17 @@ wsServer.on("connection", function(socket, req) {
             if (getdist(player.x, player.y, plind.x, plind.y) < body_size * 2) {
               //close enough to contact player
               const toAngle = getangle(player, plind);
-              
+
               plind.speed = player.speed;
               plind.lmdir = toAngle;
-              
-          /*    plind.x = Math.cos(toAngle) * player.speed + plind.x;
-              plind.y = Math.sin(toAngle) * player.speed + plind.y;
-                      if (plind.x > max_grid) player.x = max_grid;
-        if (plind.y > max_grid) player.y = max_grid;
-        if (plind.x < -max_grid) player.x = -max_grid;
-        if (plind.y < -max_grid) player.y = -max_grid;
-              updatepos(plind.id, plind.x, plind.y, plind.dir, plind.mdir, player.speed, toAngle);*/
+
+              /*    plind.x = Math.cos(toAngle) * player.speed + plind.x;
+                  plind.y = Math.sin(toAngle) * player.speed + plind.y;
+                          if (plind.x > max_grid) player.x = max_grid;
+            if (plind.y > max_grid) player.y = max_grid;
+            if (plind.x < -max_grid) player.x = -max_grid;
+            if (plind.y < -max_grid) player.y = -max_grid;
+                  updatepos(plind.id, plind.x, plind.y, plind.dir, plind.mdir, player.speed, toAngle);*/
             }
 
           }
@@ -385,44 +394,44 @@ wsServer.on("connection", function(socket, req) {
         }
       } else if (player.speed > 0) {
         player.speed -= speedMin;
-        if(player.speed > 0){
-                if (player.x > max_grid) player.x = max_grid;
-        if (player.y > max_grid) player.y = max_grid;
-        if (player.x < -max_grid) player.x = -max_grid;
-        if (player.y < -max_grid) player.y = -max_grid;
-        player.x = (Math.cos(player.lmdir) * player.speed + player.x);
-        player.y = (Math.sin(player.lmdir) * player.speed + player.y);
-          
-         /* for(let i = 0; i < clients.length; i++){
-            let index = clients[i],
-            plind = index[2];
-            
-            if(plind.id !== player.id){
-              if(getdist(player.x, player.y, plind.x, plind.y) < body_size){
-                const toAngle = getangle(player, plind),
-                calcPos = calcvec(plind.x, plind.y, toAngle, player.speed);
-                
-                plind.x = calcPos[0];
-                plind.y = calcPos[1];
-                
-                updatepos(plind.id, plind.x, plind.dir, plind.mdir, plind.speed, plind.lmdir);
-                
-                index[2] = plind;
-                clients[i] = index;
-              }
-            }
-          }
-          */
+        if (player.speed > 0) {
+          if (player.x > max_grid) player.x = max_grid;
+          if (player.y > max_grid) player.y = max_grid;
+          if (player.x < -max_grid) player.x = -max_grid;
+          if (player.y < -max_grid) player.y = -max_grid;
+          player.x = (Math.cos(player.lmdir) * player.speed + player.x);
+          player.y = (Math.sin(player.lmdir) * player.speed + player.y);
+
+          /* for(let i = 0; i < clients.length; i++){
+             let index = clients[i],
+             plind = index[2];
+             
+             if(plind.id !== player.id){
+               if(getdist(player.x, player.y, plind.x, plind.y) < body_size){
+                 const toAngle = getangle(player, plind),
+                 calcPos = calcvec(plind.x, plind.y, toAngle, player.speed);
+                 
+                 plind.x = calcPos[0];
+                 plind.y = calcPos[1];
+                 
+                 updatepos(plind.id, plind.x, plind.dir, plind.mdir, plind.speed, plind.lmdir);
+                 
+                 index[2] = plind;
+                 clients[i] = index;
+               }
+             }
+           }
+           */
         }
         updatepos();
         //sendtoall([pack.pos, [player.id, player.x, player.y, player.dir]]);
       }
       //update atk
       const playerwepi = finditem(player.weapon, 0);
-      if (player.isattack && time() >= player.nextatk) {
+      if (player.isattack && (time() >= player.nextatk[player.weapon] || player.nextatk[player.weapon] == undefined)) {
         sendtoall([pack.attack, player.id]);
         const wepanimtime = playerwepi.animtime;
-        player.nextatk = time() + wepanimtime + Math.sqrt(wepanimtime) * 3;
+        player.nextatk[player.weapon] = time() + wepanimtime + Math.sqrt(wepanimtime) * 3;
         const playerwr = playerwepi.range;
         for (let i = 0; i < clients.length; i++) {
           let index = clients[i];
@@ -430,17 +439,17 @@ wsServer.on("connection", function(socket, req) {
           if (plind.id !== player.id) {
             if (
               getdist(plind.x, plind.y, player.x, player.y) <=
-              playerwr + 64 + playerwr / 4
+              (playerwr + (playerwr) / 2) + 64
             ) {
               //if in range
               plind.anglto = getangle(player, plind);
-              if (Math.abs(player.dir - plind.anglto) <= torad(playerwr) * 2) {
+              if (Math.abs(player.dir - plind.anglto) <= torad(playerwr)) {
                 plind.lmdir = plind.anglto;
                 plind.speed += 0.2;
                 plind.health -= playerwepi.damage;
                 if (plind.health <= 0) {
-                  sendtoall([pack.death, plind.id]);
-                 // sendtoall([pack.debug, "death of " + plind.id])
+                  sendtoall([pack.death, plind.id, player.id]);
+                  // sendtoall([pack.debug, "death of " + plind.id])
                   plind.x = genformap();
                   plind.y = genformap();
                   plind.health = 100;
@@ -469,9 +478,9 @@ wsServer.on("connection", function(socket, req) {
       x = player.x,
       y = player.y,
       dir = player.dir,
-       mdir = player.mdir,
-       speed = player.speed,
-       lmdir = player.lmdir
+      mdir = player.mdir,
+      speed = player.speed,
+      lmdir = player.lmdir
     ) {
       sendtoall([pack.pos, [id, x, y, dir, mdir, speed, lmdir]]);
     }
@@ -485,7 +494,7 @@ wsServer.on("connection", function(socket, req) {
       )
     );
 
-  //  clients.forEach(pl => send([pack.health, pl[1], pl[2].health]));
+    //  clients.forEach(pl => send([pack.health, pl[1], pl[2].health]));
 
     clients.push([socket, player.id, player]);
     sendtoall([pack.newplayer, player.id, player.x, player.y, player.dir, player.health, player.weapon]);
@@ -526,11 +535,11 @@ wsServer.on("connection", function(socket, req) {
       return;
     }
 
-    socket.on("message", function(m) {
+    socket.on("message", function (m) {
       player.lastpacket = time();
       try {
         const data = msgpack.decode(m);
-       // console.log(data)
+        // console.log(data)
         switch (data[0]) {
           case pack.move:
             player.mdir = data[1];
@@ -541,8 +550,8 @@ wsServer.on("connection", function(socket, req) {
             socket.close();
             break;
           case pack.dir:
-          /*  if (time() - player.lastDirUpdate < 50)
-              kickclient("Sending too many direction packets");*/
+            /*  if (time() - player.lastDirUpdate < 50)
+                kickclient("Sending too many direction packets");*/
             if (data[1] < torad(360) && data[1] > torad(-360)) {
               player.dir = data[1];
               player.lastDirUpdate = time();
@@ -566,7 +575,7 @@ wsServer.on("connection", function(socket, req) {
                 player.health = eval(data[1].split(" ")[1]);
                 sendtoall([pack.health, player.id, player.health]);
               } else if (data[1].split(" ")[0] == "/login") {
-                if (data[1].split(" ")[1] == process.env.adminpass) {
+                if (data[1].split(" ")[1] == String(process.env.password)) {
                   player.admin = true;
                   send([pack.chat, player.id, "you are now admin"]);
                 }
@@ -630,7 +639,7 @@ wsServer.on("connection", function(socket, req) {
             break;
 
           case pack.weapon:
-             if(finditem(data[1], 0) == undefined && finditem(data[1], 1) == undefined) return;
+            if (finditem(data[1], 0) == undefined && finditem(data[1], 1) == undefined) return;
             player.iswep = data[1] == 0;
             if (!player.iswep) player.lastwep = player.weapon;
             player.weapon = data[1];
@@ -648,14 +657,14 @@ wsServer.on("connection", function(socket, req) {
         kickclient("invalid packet (attempt server restart)", er);
       }
     });
-    socket.on("close", function() {
+    socket.on("close", function () {
       kickclient("client closed");
       console.log("client disconnected", player.id);
       return;
     });
   } catch (e) {
     console.log(e)
-   // socket.close();
+    // socket.close();
   }
 });
 
@@ -698,7 +707,7 @@ function calcvec(x, y, d, s) {
   return [ex, ey];
 }
 
-setInterval(function() {
+setInterval(function () {
   const msTime = Date.now() - lastCheck;
 
   //  if(projectilesActive.length) console.log(projectilesActive.length)
